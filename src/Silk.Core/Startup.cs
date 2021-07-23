@@ -8,12 +8,15 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
 using Serilog.Extensions.Logging;
+using Silk.Core.AutoMod;
 using Silk.Core.Data;
 using Silk.Core.EventHandlers;
 using Silk.Core.EventHandlers.Guilds;
@@ -29,6 +32,7 @@ using Silk.Core.Services.Server;
 using Silk.Core.SlashCommands;
 using Silk.Core.Utilities;
 using Silk.Core.Utilities.Bot;
+using Silk.Core.Utilities.HttpClient;
 using Silk.Extensions;
 using Silk.Shared;
 using Silk.Shared.Configuration;
@@ -103,11 +107,12 @@ namespace Silk.Core
                 {
                     LoggerConfiguration? logger = new LoggerConfiguration()
                         .WriteTo.Console(outputTemplate: StringConstants.LogFormat, theme: new SilkLogTheme())
-                        .WriteTo.File("./logs/silkLog.log", LogEventLevel.Verbose, StringConstants.LogFormat, retainedFileCountLimit: null)
+                        .WriteTo.File("./logs/silkLog.log", LogEventLevel.Verbose, StringConstants.LogFormat, retainedFileCountLimit: null, rollingInterval:RollingInterval.Day, flushToDiskInterval: TimeSpan.FromMinutes(1))
                         .MinimumLevel.Override("Microsoft", LogEventLevel.Error)
                         .MinimumLevel.Override("DSharpPlus", LogEventLevel.Fatal);
 
-                    Log.Logger = builder.Configuration["LogLevel"] switch
+                    var configOptions = builder.Configuration.GetSilkConfigurationOptionsFromSection();
+                    Log.Logger = configOptions.LogLevel switch
                     {
                         "All" => logger.MinimumLevel.Verbose().CreateLogger(),
                         "Info" => logger.MinimumLevel.Information().CreateLogger(),
@@ -117,7 +122,7 @@ namespace Silk.Core
                         "Panic" => logger.MinimumLevel.Fatal().CreateLogger(),
                         _ => logger.MinimumLevel.Verbose().CreateLogger()
                     };
-                    Log.Logger.ForContext(typeof(Startup)).Information("Logging initialized!");
+                    Log.Logger.ForContext(typeof(Startup)).Information("Logging Initialized!");
                 })
                 .UseSerilog();
         }
@@ -126,9 +131,9 @@ namespace Silk.Core
         {
             return builder.ConfigureServices((context, services) =>
             {
-                IConfiguration? config = context.Configuration;
-                var silkConfig = config.GetSection(SilkConfigurationOptions.SectionKey).Get<SilkConfigurationOptions>();
-                AddSilkConfigurationOptions(services, config);
+                var silkConfig = context.Configuration.GetSilkConfigurationOptionsFromSection();
+                
+                AddSilkConfigurationOptions(services, context.Configuration);
                 AddDatabases(services, silkConfig.Persistence);
                 
                 if (!addServices) return;
@@ -142,14 +147,30 @@ namespace Silk.Core
 
                 services.AddMemoryCache(option => option.ExpirationScanFrequency = TimeSpan.FromSeconds(30));
 
-                services.AddHttpClient(StringConstants.HttpClientName, client => client.DefaultRequestHeaders.UserAgent.ParseAdd($"Silk Project by VelvetThePanda / v{StringConstants.Version}"));
+                services.AddHttpClient(StringConstants.HttpClientName,
+                    client => client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                        $"Silk Project by VelvetThePanda / v{StringConstants.Version}"));
+                
+                services.Replace(ServiceDescriptor.Singleton<IHttpMessageHandlerBuilderFilter, CustomLoggingFilter>());
 
-                services.AddSingleton<GuildEventHandlers>();
+                services.AddSingleton<GuildEventHandler>();
 
+                #region Services
+                
                 services.AddSingleton<ConfigService>();
+                services.AddSingleton<MemberGreetingService>();
+                
+                #endregion
+
+                #region AutoMod
+
+                services.AddSingleton<AutoModMuteApplier>();
+                
+                #endregion
+                
                 services.AddSingleton<AntiInviteCore>();
                 services.AddSingleton<RoleAddedHandler>();
-                services.AddSingleton<MemberGreetingService>();
+                
                 services.AddSingleton<MemberRemovedHandler>();
                 services.AddSingleton<RoleRemovedHandler>();
                 services.AddSingleton<BotExceptionHandler>();
@@ -171,9 +192,6 @@ namespace Silk.Core
 
                 services.AddSingleton<TagService>();
                 services.AddSingleton<RoleMenuReactionService>();
-                
-
-                //services.AddSingleton<IMessageSender, MessageSenderService>();
 
                 services.AddSingleton<Main>();
                 services.AddHostedService(s => s.GetRequiredService<Main>());
@@ -217,19 +235,34 @@ namespace Silk.Core
             services.Configure<SilkConfigurationOptions>(silkConfigurationSection);
         }
         
-        private static void AddDatabases(IServiceCollection services, SilkPersistenceOptions connectionString)
+        private static void AddDatabases(IServiceCollection services, SilkPersistenceOptions persistenceOptions)
         {
             void Builder(DbContextOptionsBuilder b)
             {
-                b.UseNpgsql(connectionString.ToString());
+                b.UseNpgsql(persistenceOptions.GetConnectionString());
                 #if DEBUG
                 b.EnableSensitiveDataLogging();
                 b.EnableDetailedErrors();
                 #endif // EFCore will complain about enabling sensitive data if you're not in a debug build. //
             }
             
-            services.AddDbContext<GuildContext>(Builder, ServiceLifetime.Transient);
+            // services.AddDbContext<GuildContext>(Builder, ServiceLifetime.Transient);
             services.AddDbContextFactory<GuildContext>(Builder, ServiceLifetime.Transient);
+            services.TryAdd(new ServiceDescriptor(typeof(GuildContext), p => p.GetRequiredService<IDbContextFactory<GuildContext>>().CreateDbContext(), ServiceLifetime.Transient));
+        }
+    }
+    
+    /* Todo: Move this class maybe? */
+    public static class IConfigurationExtensions
+    {
+        /// <summary>
+        /// An extension method to get a <see cref="SilkConfigurationOptions"/> instance from the Configuration by Section Key
+        /// </summary>
+        /// <param name="config">the configuration</param>
+        /// <returns>an instance of the SilkConfigurationOptions class, or null if not found</returns>
+        public static SilkConfigurationOptions GetSilkConfigurationOptionsFromSection(this IConfiguration config)
+        {
+            return config.GetSection(SilkConfigurationOptions.SectionKey).Get<SilkConfigurationOptions>();
         }
     }
 }

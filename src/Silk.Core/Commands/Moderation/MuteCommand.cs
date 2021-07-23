@@ -20,10 +20,7 @@ namespace Silk.Core.Commands.Moderation
     {
         private readonly IInfractionService _infractions;
         
-        public MuteCommand(IInfractionService infractions)
-        {
-            _infractions = infractions;
-        }
+        public MuteCommand(IInfractionService infractions) => _infractions = infractions;
 
         [Command("mute")]
         [RequireFlag(UserFlag.Staff)]
@@ -65,7 +62,8 @@ namespace Silk.Core.Commands.Moderation
             {
                 InfractionResult.SucceededWithNotification => $"🔇 Muted **{user.ToDiscordName()}** indefinitely! (User notified with Direct Message).",
                 InfractionResult.SucceededWithoutNotification => $"🔇 Muted **{user.ToDiscordName()}** indefinitely! (Failed to DM).",
-                InfractionResult.FailedGuildMemberCache => $"🔇 Muted **{user.ToDiscordName()}** indefinitely! (Member left server)."
+                InfractionResult.FailedGuildMemberCache => $"🔇 Muted **{user.ToDiscordName()}** indefinitely! (Member left server).",
+                InfractionResult.SucceededDoesNotNotify => $"🔇 Muted **{user.ToDiscordName()}** indefinitely! (Updating active mute does not notify)."
             };
             await ctx.RespondAsync(msg);
         }
@@ -103,12 +101,13 @@ namespace Silk.Core.Commands.Moderation
                 return;
             }
 
-            var res = await _infractions.MuteAsync(user.Id, ctx.Guild.Id, ctx.User.Id, reason, null);
+            var res = await _infractions.MuteAsync(user.Id, ctx.Guild.Id, ctx.User.Id, reason, DateTime.UtcNow + duration);
             var msg = res switch
             {
                 InfractionResult.SucceededWithNotification => $"🔇 Muted **{user.ToDiscordName()}**! Mute expires {Formatter.Timestamp(duration)} (User notified with Direct Message).",
                 InfractionResult.SucceededWithoutNotification => $"🔇 Muted **{user.ToDiscordName()}**! Mute expires {Formatter.Timestamp(duration)} (Failed to DM).",
-                InfractionResult.FailedGuildMemberCache => $"🔇 Muted **{user.ToDiscordName()}**! Mute expires {Formatter.Timestamp(duration)} (Member left server)."
+                InfractionResult.FailedGuildMemberCache => $"🔇 Muted **{user.ToDiscordName()}**! Mute expires {Formatter.Timestamp(duration)} (Member left server).",
+                InfractionResult.SucceededDoesNotNotify => $"🔇 Muted **{user.ToDiscordName()}**! Mute expires {Formatter.Timestamp(duration)} (Updating active mute does not notify)."
             };
             await ctx.RespondAsync(msg);
         }

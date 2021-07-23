@@ -40,6 +40,11 @@ namespace Silk.Shared.Configuration
         public bool SelfHosted { get; set; }
 
         /// <summary>
+        /// Property for controlling the level of Logging
+        /// </summary>
+        public string LogLevel { get; set; } = "Info";
+
+        /// <summary>
         /// Property for holding Persistence options (property name matching sub-key property in configuration file)
         /// </summary>
         public SilkPersistenceOptions Persistence { get; set; }
@@ -75,7 +80,20 @@ namespace Silk.Shared.Configuration
         public string Username { get; set; } = "postgres";
         public string Password { get; set; } = string.Empty;
 
-        public override string ToString() => $"Host={Host}; Port={Port}; Database={Database}; Username={Username}; Password={Password}; Include Error Detail = true";
+        /// <summary>
+        /// Convenience method to compose the ConnectionString based on the provided Persistence options
+        /// <see cref="SilkPersistenceOptions"/>
+        /// </summary>
+        /// <returns>The full connection string given the options, or invalid/incomplete connection string if pieces of configuration file are left blank</returns>
+        public string GetConnectionString()
+        {
+            return $"Server={Host};" +
+                   $"Port={Port};" +
+                   $"Database={Database};" +
+                   $"Username={Username};" +
+                   $"Password={Password};" +
+                   "Include Error Detail = true";
+        }
     }
 
     /// <summary>

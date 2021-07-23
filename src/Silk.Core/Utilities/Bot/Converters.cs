@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Converters;
 using DSharpPlus.Entities;
+using YoutubeExplode.Videos;
 
 namespace Silk.Core.Utilities.Bot
 {
@@ -130,6 +131,16 @@ namespace Silk.Core.Utilities.Bot
             }
             result2 = new(days, hours, minutes, seconds);
             return Task.FromResult(Optional.FromValue(result2));
+        }
+    }
+
+    public sealed class YTLinkConverter : IArgumentConverter<VideoId>
+    {
+        public async Task<Optional<VideoId>> ConvertAsync(string value, CommandContext ctx)
+        {
+            var id = VideoId.TryParse(value);
+
+            return id is null ? Optional.FromNoValue<VideoId>() : Optional.FromValue(id.Value);
         }
     }
 }

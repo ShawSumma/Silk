@@ -89,4 +89,10 @@
         <ProjectReference Include="..\Silk.Shared\Silk.Shared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="ffmpeg-windows">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>

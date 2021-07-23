@@ -169,7 +169,7 @@ namespace Silk.Core
                 
                 // I have no idea if it's safe to pull HttpClient from the container. Oh well. //
                 services.AddSingleton(s => new YoutubeClient(s.Get<IHttpClientFactory>()!.CreateSilkClient()!));
-                services.AddSingleton<MusicSearchService>();
+                //services.AddSingleton<MusicSearchService>();
                 services.AddSingleton<MusicVoiceService>();
                 
                 #endregion

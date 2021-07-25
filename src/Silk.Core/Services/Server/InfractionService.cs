@@ -764,5 +764,5 @@ namespace Silk.Core.Services.Server
 				await task;
 			}
 		}
-    }
+	}
 }

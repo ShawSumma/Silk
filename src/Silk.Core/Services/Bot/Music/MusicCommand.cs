@@ -1,12 +1,11 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
-using DSharpPlus.Entities;
+using Silk.Core.Types;
+using Silk.Core.Utilities.Bot;
 using Silk.Core.Utilities.HttpClient;
 using YoutubeExplode;
 using YoutubeExplode.Videos;
@@ -25,68 +24,73 @@ namespace Silk.Core.Services.Bot.Music
 			_ytClient = ytClient;
 			_htClientFactory = htClientFactory;
 		}
-
-		[Hidden]
+		
+		
 		[Command]
-		public async Task Join(CommandContext ctx)
+		[RequrieVC]
+		[Priority(0)]
+		public async Task Play(CommandContext ctx)
 		{
-			if (ctx.Member.VoiceState?.Channel is null)
-			{
-				await ctx.RespondAsync("Join a voice channel!");
-				return;
-			}
-			
-			if (ctx.Member.VoiceState.Channel.Type is not (ChannelType.Voice or ChannelType.Stage))
-			{
-				await ctx.RespondAsync("Uh?? You appear to be in an invalid channel.");
-				return;
-			}
+			var result = await _music.PlayAsync(ctx.Guild.Id);
 
-			if (await _music.JoinAsync(ctx.Member.VoiceState.Channel))
-				await ctx.Message.CreateReactionAsync(DiscordEmoji.FromUnicode("👍🏽"));
-			else
-				await ctx.RespondAsync("I couldn't join that channel!"); //TODO: Return error code
+			if (result is MusicPlayResult.InvalidChannel) 
+				await ctx.RespondAsync("I'm not in a channel!");
 		}
-
-		[Hidden]
+		
 		[Command]
+		[RequrieVC]
+		[Priority(2)]
 		public async Task Play(CommandContext ctx, VideoId video)
 		{
-			if (!_music.IsInChannel(ctx.Member))
+			
+			string message;
+			
+			VoiceResult res = await _music.JoinAsync(ctx.Member.VoiceState.Channel);
+			if (ctx.Guild.CurrentMember.VoiceState?.Channel is null)
 			{
-				await ctx.RespondAsync("Join a voice channel!");
-				return;
+				message = res switch
+				{
+					VoiceResult.Succeeded => $"Now connected to {ctx.Member.VoiceState.Channel.Mention}!",
+					VoiceResult.SameChannel => "We're...Already in the same channel.",
+					VoiceResult.CannotUnsupress => "I managed to join, but not speak.",
+					VoiceResult.CouldNotJoinChannel => "Awh. I can't join that channel!",
+					VoiceResult.NonVoiceBasedChannel => "You...Don't seemt o be in a voice-based channel??"
+				};
+
+				await ctx.RespondAsync(message);
+			
+				if (res is not VoiceResult.Succeeded or VoiceResult.SameChannel)
+					return;
 			}
 
-			if (!_music.IsInChannel(ctx.Guild.CurrentMember)) 
-				await _music.JoinAsync(ctx.Member.VoiceState.Channel);
+			_music.Enqueue(ctx.Guild.Id, GetTrackAsync);
 			
-			if (!_music.IsInCurrentChannel(ctx.Member))
-			{
-				await ctx.RespondAsync("Sorry, but you have to be in the same channel to use music commands!");
-				return;
-			}
-			
-			if (ctx.Member.VoiceState.Channel.Type is not (ChannelType.Voice or ChannelType.Stage))
-			{
-				await ctx.RespondAsync("Uh?? You appear to be in an invalid channel.");
-				return;
-			}
+			var result = await _music.PlayAsync(ctx.Guild.Id);
 
-			
-
-			var stream = (await _ytClient.Videos.Streams.GetManifestAsync(video)).GetAudioOnlyStreams().First();
-			
-			_music._states[ctx.Guild.Id].Queue.Queue.Enqueue(new()
+			message = result switch
 			{
-				Requester = ctx.User,
-				Duration = TimeSpan.FromSeconds((int)(stream.Bitrate.BitsPerSecond / 8 / stream.Size.Bytes)), 
-				Stream = new(_htClientFactory.CreateSilkClient(), stream.Url, stream.Size.Bytes, !Regex.IsMatch(stream.Url, "ratebypass[=/]yes") ? 9_898_989 : null)
-			});
+				MusicPlayResult.NowPlaying => $"Now playing {_music.GetNowPlayingTitle(ctx.Guild.Id)}!",
+				MusicPlayResult.AlreadyPlaying => "Queued 1 song.",
+				_ => $"Unexpected response {result}"
+			};
 
-			if (await _music.Play(ctx.Guild.Id))
-				await ctx.Message.CreateReactionAsync(DiscordEmoji.FromUnicode("👍🏽"));
-			else await ctx.RespondAsync("Oh no! Something went wrong while playing :(");
+			await ctx.RespondAsync(message);
+
+			async Task<MusicTrack> GetTrackAsync()
+			{
+				var manifest = await _ytClient.Videos.Streams.GetManifestAsync(video);
+				var audio = manifest.GetAudioOnlyStreams().First();
+				var stream = new LazyLoadHttpStream(_htClientFactory.CreateSilkClient(), audio.Url, audio.Size.Bytes, !Regex.IsMatch(audio.Url, "ratebypass[=/]yes") ? 9_898_989 : null);
+				var vid = await _ytClient.Videos.GetAsync(video);
+
+				return new()
+				{
+					Title = vid.Title,
+					Stream = stream,
+					Requester = ctx.User,
+					Duration = vid.Duration.Value,
+				};
+			};
 		}
 	}
 }

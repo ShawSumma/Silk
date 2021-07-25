@@ -89,7 +89,19 @@ namespace Silk.Core.Types
 
             var stream = await ResolveSegmentStreamAsync(cancellationToken);
 
-            var bytesRead = await stream?.ReadAsync(buffer, offset, count, cancellationToken)!;
+            var bytesRead = 0;
+            try
+            {
+                bytesRead = await stream?.ReadAsync(buffer, offset, count, cancellationToken)!;
+            }
+            catch (IOException)
+            {
+                try
+                {
+                    bytesRead = await stream?.ReadAsync(buffer, offset, count, cancellationToken)!;
+                }
+                catch { }
+            }
             Position = _actualPosition += bytesRead;
 
             // Stream reached the end of the current segment - reset and read again
@@ -151,6 +163,5 @@ namespace Silk.Core.Types
 
             return await response.Content.ReadAsStreamAsync(cancellationToken);
         }
-
     }
 }

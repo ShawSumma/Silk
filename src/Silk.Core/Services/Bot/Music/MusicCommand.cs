@@ -42,7 +42,6 @@ namespace Silk.Core.Services.Bot.Music
 		[Priority(2)]
 		public async Task Play(CommandContext ctx, VideoId video)
 		{
-			
 			string message;
 			
 			VoiceResult res = await _music.JoinAsync(ctx.Member.VoiceState.Channel);

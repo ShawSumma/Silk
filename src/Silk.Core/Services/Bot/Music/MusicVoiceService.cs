@@ -93,11 +93,12 @@ namespace Silk.Core.Services.Bot.Music
 
 			var vnextSink = state.Connection.GetTransmitSink();
 			
+			await state.ResumeAsync();
 			Task yt = state.NowPlaying!.Stream.CopyToAsync(state.InStream, state.Token);
 			Task vn = state.OutStream.CopyToAsync(vnextSink, cancellationToken: state.Token);
 			
 			_ = Task.Run(async () => await Task.WhenAll(yt, vn));
-			await state.ResumeAsync();
+			
 			return MusicPlayResult.NowPlaying;
 		}
 
@@ -121,6 +122,12 @@ namespace Silk.Core.Services.Bot.Music
 				return;
 
 			await state.ResumeAsync();
+			
+			var vnextSink = state.Connection.GetTransmitSink();
+			Task yt = state.NowPlaying!.Stream.CopyToAsync(state.InStream, state.Token);
+			Task vn = state.OutStream.CopyToAsync(vnextSink, cancellationToken: state.Token);
+			
+			_ = Task.Run(async () => await Task.WhenAll(yt, vn));
 		}
 
 		public void Enqueue(ulong guildId, Func<Task<MusicTrack>> fun)
@@ -174,7 +181,7 @@ namespace Silk.Core.Services.Bot.Music
 			CreateNoWindow = true,
 			UseShellExecute = false,
 		};
-
+		private readonly TimeSpan _tenSecondBuffer = TimeSpan.FromSeconds(10);
 		private bool _disposing;
 
 		public MusicState()
@@ -207,9 +214,11 @@ namespace Silk.Core.Services.Bot.Music
 			while (!_disposing)
 			{
 				await _mre.WaitAsync();
-				// If playback is finished, kill ffmpeg.
-				// Otherwise trying to use ReadAsync() on stdout blocks indefinitely,
-				// and ffmpeg will destroy any audio pumped into stdin afterwards. Yikes.
+				
+				if (RemainingDuration < _tenSecondBuffer)
+					if (Queue.RemainingTracks is not 0)
+						await Queue.GetNextAsync();
+				
 				if (RemainingDuration <= TimeSpan.Zero)
 				{
 					Pause();

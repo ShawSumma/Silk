@@ -91,5 +91,11 @@ namespace Silk.Core.Services.Bot.Music
 				};
 			};
 		}
+
+		[Command]
+		public async Task Pause(CommandContext ctx) => _music.Pause(ctx.Guild.Id);
+
+		[Command]
+		public Task Resume(CommandContext ctx) => _music.ResumeAsync(ctx.Guild.Id).AsTask();
 	}
 }

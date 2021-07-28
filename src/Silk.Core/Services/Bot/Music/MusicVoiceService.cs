@@ -8,6 +8,7 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.VoiceNext;
 using Emzi0767.Utilities;
+using Serilog;
 
 namespace Silk.Core.Services.Bot.Music
 {
@@ -17,6 +18,9 @@ namespace Silk.Core.Services.Bot.Music
 		/// The states of any given guild.
 		/// </summary>
 		private readonly ConcurrentDictionary<ulong, MusicState> _states = new();
+
+		private readonly SemaphoreSlim _lock = new(1);
+		
 		private readonly DiscordShardedClient _client;
 		public MusicVoiceService(DiscordShardedClient client)
 		{
@@ -54,50 +58,90 @@ namespace Silk.Core.Services.Bot.Music
 
 			if (vnext.GetConnection(channel.Guild) is { } vnextConnection)
 				vnextConnection.Disconnect();
+
+			if (!channel.Guild.CurrentMember.IsDeafened)
+			{
+				try { await channel.Guild.CurrentMember.SetDeafAsync(true); }
+				catch { }
+			}
+			
 			
 			var connection = await vnext.ConnectAsync(channel);
 			
-			if (channel.Type is ChannelType.Stage)
-			{
-				try
-				{
-					await channel.UpdateCurrentUserVoiceStateAsync(false, DateTime.Now);
-				}
-				catch
-				{
-					return VoiceResult.CannotUnsupress;
-				}
-			}
-
 			var trackstate = _states[channel.Guild.Id] = new()
 			{
 				Connection =  connection
 			}; // TODO: Dispose
 
-			trackstate.TrackEnded += async (s, _) => await PlayAsync((s as MusicState)!.ConnectedChannel.Guild.Id);
+			trackstate.TrackEnded += async (s, _) =>
+			{
+				var res = await PlayAsync((s as MusicState)!.ConnectedChannel.Guild.Id);
+				Log.Information("AutoPlay returned {Result}", res);
+			};
+			
+			if (channel.Type is ChannelType.Stage)
+			{
+				try
+				{
+					await channel.UpdateCurrentUserVoiceStateAsync(false);
+				}
+				catch
+				{
+					await channel.UpdateCurrentUserVoiceStateAsync(true, DateTimeOffset.Now);
+					return VoiceResult.CannotUnsupress;
+				}
+			}
+			
 			
 			return VoiceResult.Succeeded;
 		}
-
+		
 		public async Task<MusicPlayResult> PlayAsync(ulong guildId)
+		{
+			await _lock.WaitAsync();
+
+			try
+			{
+				if (!_states.TryGetValue(guildId, out var state))
+					return MusicPlayResult.InvalidChannel;
+
+				if (state.IsPlaying && state.NowPlaying is not null)
+					return MusicPlayResult.AlreadyPlaying;
+				
+				if (state.NowPlaying is null || state.RemainingDuration <= TimeSpan.Zero)
+					if (!await state.Queue.GetNextAsync())
+						return MusicPlayResult.QueueEmpty;
+
+				var vnextSink = state.Connection.GetTransmitSink();
+			
+				await state.ResumeAsync();
+				Task yt = state.NowPlaying!.Stream.CopyToAsync(state.InStream, state.Token);
+				Task vn = state.OutStream.CopyToAsync(vnextSink, cancellationToken: state.Token);
+			
+				_ = Task.Run(async () => await Task.WhenAll(yt, vn));
+			
+				return MusicPlayResult.NowPlaying;
+			}
+			finally
+			{
+				_lock.Release();
+			}
+		}
+
+		public async Task<MusicPlayResult> SkipAsync(ulong guildId)
 		{
 			if (!_states.TryGetValue(guildId, out var state))
 				return MusicPlayResult.InvalidChannel;
 
-			if (state.IsPlaying && state.NowPlaying is not null)
-				return MusicPlayResult.AlreadyPlaying;
+			if (state.Queue.RemainingTracks is 0)
+				return MusicPlayResult.QueueEmpty;
 			
-			if (state.NowPlaying is null || state.RemainingDuration <= TimeSpan.Zero)
-				if (!await state.Queue.GetNextAsync())
-					return MusicPlayResult.QueueEmpty;
+			Pause(guildId);
 
-			var vnextSink = state.Connection.GetTransmitSink();
+			await state.Queue.GetNextAsync();
+			state.RestartFFMpeg();
 			
-			await state.ResumeAsync();
-			Task yt = state.NowPlaying!.Stream.CopyToAsync(state.InStream, state.Token);
-			Task vn = state.OutStream.CopyToAsync(vnextSink, cancellationToken: state.Token);
-			
-			_ = Task.Run(async () => await Task.WhenAll(yt, vn));
+			await PlayAsync(guildId);
 			
 			return MusicPlayResult.NowPlaying;
 		}
@@ -106,7 +150,7 @@ namespace Silk.Core.Services.Bot.Music
 		{
 			if (!_states.TryGetValue(guildId, out var state))
 				return;
-
+			
 			if (!state.IsPlaying)
 				return;
 			
@@ -118,12 +162,12 @@ namespace Silk.Core.Services.Bot.Music
 			if (!_states.TryGetValue(guildId, out var state))
 				return;
 
-			if (state.IsPlaying)
+			if (!state.IsPlaying) // Don't needlessly yeet the CT. //
 				return;
-
-			await state.ResumeAsync();
 			
 			var vnextSink = state.Connection.GetTransmitSink();
+			
+			await state.ResumeAsync();
 			Task yt = state.NowPlaying!.Stream.CopyToAsync(state.InStream, state.Token);
 			Task vn = state.OutStream.CopyToAsync(vnextSink, cancellationToken: state.Token);
 			
@@ -136,15 +180,6 @@ namespace Silk.Core.Services.Bot.Music
 				return;
 			
 			state.Queue.Enqueue(fun);
-		}
-		
-		public void Skip(ulong guildId)
-		{
-			if (!_states.TryGetValue(guildId, out var state))
-				return;
-			
-			state.Pause();
-			
 		}
 	}
 
@@ -165,7 +200,7 @@ namespace Silk.Core.Services.Bot.Music
 
 		private readonly AsyncManualResetEvent _mre = new(false);
 
-		public Stream InStream => _ffmpeg.StandardInput.BaseStream;
+		public FileStream InStream => (FileStream)_ffmpeg.StandardInput.BaseStream;
 		public FileStream OutStream => (FileStream)_ffmpeg.StandardOutput.BaseStream;
 		
 		private Process _ffmpeg;
@@ -202,7 +237,7 @@ namespace Silk.Core.Services.Bot.Music
 			_cts = new();
 		}
 
-		private void RestartFFMpeg()
+		public void RestartFFMpeg()
 		{
 			_ffmpeg?.Kill();
 			_ffmpeg?.Dispose();
@@ -211,25 +246,31 @@ namespace Silk.Core.Services.Bot.Music
 
 		private async void DoDurationLoopAsync()
 		{
+			bool trackLoaded = false;
 			while (!_disposing)
 			{
 				await _mre.WaitAsync();
+			
+				// The reson CT.None is passed is because pausing and resuming sets the MRE,
+				// so we don't want to cancel, becasue we're going to wait anyway.
+				await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
 				
-				if (RemainingDuration < _tenSecondBuffer)
+				if (RemainingDuration < _tenSecondBuffer && !trackLoaded)
 					if (Queue.RemainingTracks is not 0)
+					{
 						await Queue.GetNextAsync();
-				
+						trackLoaded = true;
+					}
+
 				if (RemainingDuration <= TimeSpan.Zero)
 				{
 					Pause();
-					//RestartFFMpeg();
-					TrackEnded(this, EventArgs.Empty);
+					RestartFFMpeg(); // FFMpeg(?) cuts off the beginning of the song after the first song otherwise. //
+					trackLoaded = false;
+					TrackEnded(this, EventArgs.Empty); //TODO: Make custom handler 
 				}
 				
-				// The reson CT.None is passed is because pausing and resuming sets the MRE,
-				// so we don't want to cancel, becasue we're going to wait anyway.
 				Queue.RemainingSeconds--;
-				await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
 			}
 		}
 

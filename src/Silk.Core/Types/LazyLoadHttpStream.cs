@@ -80,6 +80,10 @@ namespace Silk.Core.Types
             CancellationToken cancellationToken)
         {
             // Check if consumer changed position between reads
+
+            if (Position is 0)
+                _actualPosition = 0;
+            
             if (_actualPosition != Position)
                 ResetSegmentStream();
 

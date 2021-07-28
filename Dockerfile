@@ -16,7 +16,7 @@ RUN apk upgrade --update-cache --available && \
     rm -rf /var/cache/apk/*
 
 # Music commands *will* break without this.
-RUN apt-get install libopus0 libopus-dev && apt-get install libsodium23 libsodium-dev
+RUN apk add libopus0 libopus-dev && apk add libsodium23 libsodium-dev
 
 WORKDIR /Silk
 COPY --from=build /Silk/out .

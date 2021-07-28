@@ -17,6 +17,7 @@ RUN apk upgrade --update-cache --available && \
 
 # Music commands *will* break without this.
 RUN apk add opus && apk add libsodium
+RUN ln -s /usr/lib/x86_64-linux-gnu/libopus.so.0 /usr/lib/x86_64-linux-gnu/opus.so
 
 WORKDIR /Silk
 COPY --from=build /Silk/out .

@@ -16,7 +16,7 @@ RUN apk upgrade --update-cache --available && \
     rm -rf /var/cache/apk/*
 
 # Music commands *will* break without this.
-RUN apk add opus && apk add libsodium
+RUN apk add --upgrade opus && apk add --upgrade libsodium && apk add --upgrade ffmpeg
 RUN ln -s /usr/lib/libopus.so.0 /usr/lib/opus.so
 RUN ln -s /usr/bin/ffmpeg /Silk/ffmpeg-linux
 

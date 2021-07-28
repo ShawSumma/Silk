@@ -256,11 +256,13 @@ namespace Silk.Core.Services.Bot.Music
 				await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
 				
 				if (RemainingDuration < _tenSecondBuffer && !trackLoaded)
+				{
 					if (Queue.RemainingTracks is not 0)
 					{
-						await Queue.GetNextAsync();
+						await Queue.PreloadAsync();
 						trackLoaded = true;
 					}
+				}
 
 				if (RemainingDuration <= TimeSpan.Zero)
 				{

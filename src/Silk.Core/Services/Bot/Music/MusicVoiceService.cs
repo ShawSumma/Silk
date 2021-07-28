@@ -216,7 +216,7 @@ namespace Silk.Core.Services.Bot.Music
 			CreateNoWindow = true,
 			UseShellExecute = false,
 		};
-		private readonly TimeSpan _tenSecondBuffer = TimeSpan.FromSeconds(10);
+		private readonly TimeSpan _preloadBuffer = TimeSpan.FromSeconds(10);
 		private bool _disposing;
 
 		public MusicState()
@@ -255,7 +255,7 @@ namespace Silk.Core.Services.Bot.Music
 				// so we don't want to cancel, becasue we're going to wait anyway.
 				await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
 				
-				if (RemainingDuration < _tenSecondBuffer && !trackLoaded)
+				if (RemainingDuration < _preloadBuffer && !trackLoaded)
 				{
 					if (Queue.RemainingTracks is not 0)
 					{

@@ -15,6 +15,9 @@ RUN apk upgrade --update-cache --available && \
     apk add openssl && \
     rm -rf /var/cache/apk/*
 
+# Music commands *will* break without this.
+RUN apt-get install libopus0 libopus-dev && apt-get install libsodium23 libsodium-dev
+
 WORKDIR /Silk
 COPY --from=build /Silk/out .
 

@@ -39,7 +39,7 @@ namespace Silk.Core.Utilities.HelpFormatter
 
         public override CommandHelpMessage Build()
         {
-            DiscordEmbedBuilder embed = new DiscordEmbedBuilder().WithColor(DiscordColor.PhthaloBlue);
+            DiscordEmbedBuilder embed = new DiscordEmbedBuilder().WithColor(DiscordColor.Azure);
 
             if (Command == null)
             {

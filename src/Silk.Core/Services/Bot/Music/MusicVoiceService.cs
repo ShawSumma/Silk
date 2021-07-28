@@ -210,7 +210,7 @@ namespace Silk.Core.Services.Bot.Music
 			RedirectStandardInput = true,
 			RedirectStandardOutput = true,
 			FileName =
-				OperatingSystem.IsLinux() ? "./ffmpeg-linux" :
+				OperatingSystem.IsLinux() ? "./ffmpeg" : //Linux is just ffmpeg
 				OperatingSystem.IsWindows() ? "./ffmpeg-windows" :
 				throw new PlatformNotSupportedException(),
 			CreateNoWindow = true,

@@ -18,7 +18,7 @@ RUN apk upgrade --update-cache --available && \
 # Music commands *will* break without this.
 RUN apk add --upgrade opus && apk add --upgrade libsodium && apk add --upgrade ffmpeg
 RUN ln -s /usr/lib/libopus.so.0 /usr/lib/opus.so
-RUN ln -s /usr/bin/ffmpeg /Silk/ffmpeg-linux
+RUN ln -s /usr/bin/ffmpeg /Silk/ffmpeg
 
 WORKDIR /Silk
 COPY --from=build /Silk/out .

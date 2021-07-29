@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -32,6 +33,7 @@ namespace Silk.Core.Services.Bot.Music
 		
 		[Command]
 		[RequrieVC]
+		[RequrieSameVC]
 		[Priority(0)]
 		public async Task Play(CommandContext ctx)
 		{
@@ -43,6 +45,7 @@ namespace Silk.Core.Services.Bot.Music
 		
 		[Command]
 		[RequrieVC]
+		[RequrieSameVC]
 		[Priority(2)]
 		public async Task Play(CommandContext ctx, VideoId video)
 		{
@@ -99,22 +102,26 @@ namespace Silk.Core.Services.Bot.Music
 	
 		[Command]
 		[RequrieVC]
+		[RequrieSameVC]
 		[Priority(1)]
-		public async Task Play(CommandContext ctx, Playlist playlist)
+		public async Task Play(CommandContext ctx, IReadOnlyList<PlaylistVideo> playlist)
 		{
-			
+			await ctx.RespondAsync("It do a work!");
 		}
 		
 		[Command]
 		[RequrieVC]
+		[RequrieSameVC]
 		public async Task Pause(CommandContext ctx) => _music.Pause(ctx.Guild.Id);
 
 		[Command]
 		[RequrieVC]
+		[RequrieSameVC]
 		public Task Resume(CommandContext ctx) => _music.ResumeAsync(ctx.Guild.Id).AsTask();
 
 		[Command]
 		[RequrieVC]
+		[RequrieSameVC]
 		public async Task Skip(CommandContext ctx)
 		{
 			var vstate = ctx.Member.VoiceState.Channel;
@@ -139,10 +146,11 @@ namespace Silk.Core.Services.Bot.Music
 					var vote = await interactivity.WaitForReactionAsync(m => ((DiscordMember) m.User).VoiceState?.Channel == vstate, now - expiry);
 					if (!vote.TimedOut)
 						votes++;
-				} 
+				}
+
+				if (votes >= requiredVotes)
+					await _music.SkipAsync(ctx.Guild.Id);
 			}
-		} 
-		
-		
+		}
 	}
 }

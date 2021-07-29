@@ -108,6 +108,7 @@ namespace Silk.Core
                 cnextExt.SetHelpFormatter<HelpFormatter>();
                 cnextExt.RegisterConverter(new MemberConverter());
                 cnextExt.RegisterConverter(new VideoIdConverter());
+                cnextExt.RegisterConverter(new VideoPlaylistConverter());
                 cnextExt.CommandExecuted += _commandHandler.AddCommandInvocation;
             }
 

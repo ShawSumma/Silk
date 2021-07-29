@@ -106,7 +106,29 @@ namespace Silk.Core.Services.Bot.Music
 		[Priority(1)]
 		public async Task Play(CommandContext ctx, IReadOnlyList<PlaylistVideo> playlist)
 		{
-			await ctx.RespondAsync("It do a work!");
+			var videos = playlist.Where(p => (p.Duration ?? TimeSpan.MaxValue) < TimeSpan.FromHours(4));
+			foreach (PlaylistVideo video in videos)
+			{
+				_music.Enqueue(ctx.Guild.Id, () => GetTrackAsync(video));
+			}
+
+			await ctx.RespondAsync($"Queued {videos.Count()} videos.");
+			
+			async Task<MusicTrack> GetTrackAsync(PlaylistVideo video)
+			{
+				var manifest = await _ytClient.Videos.Streams.GetManifestAsync(video.Url);
+				var audio = manifest.GetAudioOnlyStreams().First();
+				var stream = new LazyLoadHttpStream(_htClientFactory.CreateSilkClient(), audio.Url, audio.Size.Bytes, !Regex.IsMatch(audio.Url, "ratebypass[=/]yes") ? 9_898_989 : null);
+				var vid = await _ytClient.Videos.GetAsync(video.Url);
+				
+				return new()
+				{
+					Title = vid.Title,
+					Stream = stream,
+					Requester = ctx.User,
+					Duration = vid.Duration.Value
+				};
+			}
 		}
 		
 		[Command]

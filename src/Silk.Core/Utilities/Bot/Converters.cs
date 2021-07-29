@@ -9,6 +9,7 @@ using DSharpPlus.CommandsNext.Converters;
 using DSharpPlus.Entities;
 using Silk.Extensions;
 using YoutubeExplode;
+using YoutubeExplode.Common;
 using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos;
 
@@ -137,30 +138,43 @@ namespace Silk.Core.Utilities.Bot
         }
     }
 
-    public sealed class VideoIdConverter : IArgumentConverter<VideoId>
+    public sealed class VideoIdConverter : IArgumentConverter<Video>
     {
-        public async Task<Optional<VideoId>> ConvertAsync(string value, CommandContext ctx)
+        public async Task<Optional<Video>> ConvertAsync(string value, CommandContext ctx)
         {
             var id = VideoId.TryParse(value);
-
-            return id is null ? Optional.FromNoValue<VideoId>() : Optional.FromValue(id.Value);
+            
+            if (!id.HasValue)
+                return Optional.FromNoValue<Video>();
+            
+            var yt = ctx.Services.Get<YoutubeClient>()!;
+            
+            var video = await yt.Videos.GetAsync(id.Value);
+            
+            
+            
+            return Optional.FromValue(video);
         }
     }
 
-    public sealed class VideoPlaylistConverter : IArgumentConverter<Playlist>
+    public sealed class VideoPlaylistConverter : IArgumentConverter<IReadOnlyList<PlaylistVideo>>
     {
-
-        public async Task<Optional<Playlist>> ConvertAsync(string value, CommandContext ctx)
+        public async Task<Optional<IReadOnlyList<PlaylistVideo>>> ConvertAsync(string value, CommandContext ctx)
         {
-            if (!(PlaylistId.TryParse(value) is {} video))
-                return Optional.FromNoValue<Playlist>();
+            if (PlaylistId.TryParse(value) is not {} video)
+                return Optional.FromNoValue<IReadOnlyList<PlaylistVideo>>();
 
             var yt = ctx.Services.Get<YoutubeClient>()!;
 
-            var playlist = await yt.Playlists.GetAsync(video);
-            
-            
-            return default;
+            try
+            {
+                var playlist = await yt.Playlists.GetVideosAsync(video);
+                return Optional.FromValue<IReadOnlyList<PlaylistVideo>>(playlist);
+            }
+            catch
+            {
+                return Optional.FromNoValue<IReadOnlyList<PlaylistVideo>>();
+            }
         }
     }
     

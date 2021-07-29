@@ -33,7 +33,6 @@ namespace Silk.Core.Services.Bot.Music
 		
 		[Command]
 		[RequrieVC]
-		[RequrieSameVC]
 		[Priority(0)]
 		public async Task Play(CommandContext ctx)
 		{
@@ -45,7 +44,6 @@ namespace Silk.Core.Services.Bot.Music
 		
 		[Command]
 		[RequrieVC]
-		[RequrieSameVC]
 		[Priority(2)]
 		public async Task Play(CommandContext ctx, VideoId video)
 		{
@@ -102,7 +100,6 @@ namespace Silk.Core.Services.Bot.Music
 	
 		[Command]
 		[RequrieVC]
-		[RequrieSameVC]
 		[Priority(1)]
 		public async Task Play(CommandContext ctx, IReadOnlyList<PlaylistVideo> playlist)
 		{

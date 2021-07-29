@@ -132,18 +132,13 @@ namespace Silk.Core.Services.Bot.Music
 		{
 			if (!_states.TryGetValue(guildId, out var state))
 				return MusicPlayResult.InvalidChannel;
-
-			if (state.Queue.RemainingTracks is 0)
-				return MusicPlayResult.QueueEmpty;
 			
 			Pause(guildId);
 
 			await state.Queue.GetNextAsync();
 			state.RestartFFMpeg();
 			
-			await PlayAsync(guildId);
-			
-			return MusicPlayResult.NowPlaying;
+			return await PlayAsync(guildId);
 		}
 
 		public void Pause(ulong guildId)
@@ -206,7 +201,7 @@ namespace Silk.Core.Services.Bot.Music
 		private Process _ffmpeg;
 		private readonly ProcessStartInfo _ffmpegInfo = new()
 		{
-			Arguments = "-i - -ac 2 -f s16le -ar 48k pipe:1",
+			Arguments = "-hide_banner -loglevel quiet -i - -ac 2 -f s16le -ar 48k pipe:1 ",
 			RedirectStandardInput = true,
 			RedirectStandardOutput = true,
 			FileName =

@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Converters;
 using DSharpPlus.Entities;
+using Silk.Extensions;
+using YoutubeExplode;
+using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos;
 
 namespace Silk.Core.Utilities.Bot
@@ -134,7 +137,7 @@ namespace Silk.Core.Utilities.Bot
         }
     }
 
-    public sealed class YTLinkConverter : IArgumentConverter<VideoId>
+    public sealed class VideoIdConverter : IArgumentConverter<VideoId>
     {
         public async Task<Optional<VideoId>> ConvertAsync(string value, CommandContext ctx)
         {
@@ -143,4 +146,22 @@ namespace Silk.Core.Utilities.Bot
             return id is null ? Optional.FromNoValue<VideoId>() : Optional.FromValue(id.Value);
         }
     }
+
+    public sealed class VideoPlaylistConverter : IArgumentConverter<Playlist>
+    {
+
+        public async Task<Optional<Playlist>> ConvertAsync(string value, CommandContext ctx)
+        {
+            if (!(PlaylistId.TryParse(value) is {} video))
+                return Optional.FromNoValue<Playlist>();
+
+            var yt = ctx.Services.Get<YoutubeClient>()!;
+
+            var playlist = await yt.Playlists.GetAsync(video);
+            
+            
+            return default;
+        }
+    }
+    
 }

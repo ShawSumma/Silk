@@ -11,6 +11,7 @@ using Silk.Core.Types;
 using Silk.Core.Utilities.Bot;
 using Silk.Core.Utilities.HttpClient;
 using YoutubeExplode;
+using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos;
 
 namespace Silk.Core.Services.Bot.Music
@@ -93,9 +94,17 @@ namespace Silk.Core.Services.Bot.Music
 					Requester = ctx.User,
 					Duration = vid.Duration.Value,
 				};
-			};
+			}
 		}
-
+	
+		[Command]
+		[RequrieVC]
+		[Priority(1)]
+		public async Task Play(CommandContext ctx, Playlist playlist)
+		{
+			
+		}
+		
 		[Command]
 		[RequrieVC]
 		public async Task Pause(CommandContext ctx) => _music.Pause(ctx.Guild.Id);
@@ -133,5 +142,7 @@ namespace Silk.Core.Services.Bot.Music
 				} 
 			}
 		} 
+		
+		
 	}
 }

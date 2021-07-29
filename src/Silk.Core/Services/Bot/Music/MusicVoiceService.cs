@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.VoiceNext;
-using Serilog;
 
 namespace Silk.Core.Services.Bot.Music
 {
@@ -73,11 +72,7 @@ namespace Silk.Core.Services.Bot.Music
 				CommandChannel = commandChannel
 			};
 
-			state.TrackEnded += async (s, _) =>
-			{
-				var res = await PlayAsync((s as MusicState)!.ConnectedChannel.Guild.Id);
-				Log.Information("AutoPlay returned {Result}", res);
-			};
+			state.TrackEnded += async (s, _) => await PlayAsync((s as MusicState)!.ConnectedChannel.Guild.Id);
 			
 			if (voiceChannel.Type is ChannelType.Stage)
 			{

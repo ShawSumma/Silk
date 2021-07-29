@@ -49,7 +49,7 @@ namespace Silk.Core.Services.Bot.Music
 		{
 			string message;
 			
-			VoiceResult res = await _music.JoinAsync(ctx.Member.VoiceState.Channel);
+			VoiceResult res = await _music.JoinAsync(ctx.Member.VoiceState.Channel, ctx.Channel);
 			if (ctx.Guild.CurrentMember.VoiceState?.Channel is not null)
 			{
 				message = res switch
